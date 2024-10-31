@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from flask import Flask, make_response, jsonify, request, session
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
@@ -21,10 +19,8 @@ api = Api(app)
 class ClearSession(Resource):
 
     def delete(self):
-    
         session['page_views'] = None
         session['user_id'] = None
-
         return {}, 204
 
 class IndexArticle(Resource):
@@ -36,7 +32,6 @@ class IndexArticle(Resource):
 class ShowArticle(Resource):
 
     def get(self, id):
-
         article = Article.query.filter(Article.id == id).first()
         article_json = article.to_dict()
 
@@ -54,12 +49,10 @@ class ShowArticle(Resource):
 class Login(Resource):
 
     def post(self):
-        
         username = request.get_json().get('username')
         user = User.query.filter(User.username == username).first()
 
         if user:
-        
             session['user_id'] = user.id
             return user.to_dict(), 200
 
@@ -68,32 +61,41 @@ class Login(Resource):
 class Logout(Resource):
 
     def delete(self):
-
         session['user_id'] = None
-        
         return {}, 204
 
 class CheckSession(Resource):
 
     def get(self):
-        
-        user_id = session['user_id']
+        user_id = session.get('user_id')
         if user_id:
             user = User.query.filter(User.id == user_id).first()
             return user.to_dict(), 200
         
         return {}, 401
 
+#  Member-only articles now require authentication
 class MemberOnlyIndex(Resource):
     
     def get(self):
-        pass
+        # check for user authentication
+        if not session.get('user_id'):
+            return {'message': 'Unauthorized access'}, 401
+
+        articles = Article.query.filter_by(is_member_only=True).all()
+        return [article.to_dict() for article in articles], 200
 
 class MemberOnlyArticle(Resource):
     
     def get(self, id):
-        pass
+        # check for user authentication
+        if not session.get('user_id'):
+            return {'message': 'Unauthorized access'}, 401
 
+        article = Article.query.filter_by(id=id).first()
+        return article.to_dict(), 200
+
+# Route mappings
 api.add_resource(ClearSession, '/clear', endpoint='clear')
 api.add_resource(IndexArticle, '/articles', endpoint='article_list')
 api.add_resource(ShowArticle, '/articles/<int:id>', endpoint='show_article')
@@ -102,7 +104,6 @@ api.add_resource(Logout, '/logout', endpoint='logout')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
 api.add_resource(MemberOnlyIndex, '/members_only_articles', endpoint='member_index')
 api.add_resource(MemberOnlyArticle, '/members_only_articles/<int:id>', endpoint='member_article')
-
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
